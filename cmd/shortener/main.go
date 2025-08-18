@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"io"
 )
 
 var urls = make(map[string]string) 
@@ -15,19 +16,25 @@ func main() {
 }
 
 func rootHandle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	longURL, err := getURLFromRequest(r)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
+	longURL := strings.TrimSpace(string(body))
+	if longURL == "" {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
 	shortID := generateShortID()
-	urls[shortID] = longURL 
+	urls[shortID] = longURL
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
