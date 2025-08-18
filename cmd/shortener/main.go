@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var urls = make(map[string]string) // Общая мапа без защиты
+var urls = make(map[string]string) 
 
 func main() {
 	http.HandleFunc("/", rootHandle)
