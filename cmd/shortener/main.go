@@ -8,17 +8,29 @@ import (
 	"encoding/hex"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	
 )
 
 var urls = make(map[string]string) 
 
 func main() {
+	parseFlags()
+
+	if err := run(); err != nil {
+		panic(err)
+	}
+}
+
+func run() error {
 	e := echo.New()
 
 	e.POST("/", rootHandle)
 	e.GET("/:id", redirectHandle)
 
-	e.Logger.Fatal(e.Start(":8080"))
+	fmt.Printf("Running server on %s\n", flagRunAddr)
+	fmt.Printf("Base URL: %s\n", flagBaseURL)
+
+	return e.Start(flagRunAddr)
 }
 
 func rootHandle(c echo.Context) error {
@@ -36,7 +48,7 @@ func rootHandle(c echo.Context) error {
 	shortID := generateShortID()
 	urls[shortID] = longURL
 
-	shortURL := fmt.Sprintf("http://%s/%s", c.Request().Host, shortID)
+	shortURL := fmt.Sprintf("%s/%s", flagBaseURL, shortID)
 
 	return c.String(http.StatusCreated, shortURL)
 }
