@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"io"
+	"crypto/rand"
+	"encoding/hex"
 )
 
 var urls = make(map[string]string) 
@@ -78,5 +80,10 @@ func getURLFromRequest(r *http.Request) (string, error) {
 }
 
 func generateShortID() string {
-	return fmt.Sprintf("%x", len(urls)+1)
+	b := make([]byte, 4)
+	_, err := rand.Read(b)
+	if err != nil {
+		return fmt.Sprintf("%x", len(urls)+1)
+	}
+	return hex.EncodeToString(b)
 }
