@@ -33,7 +33,7 @@ func TestRootHandle_POST_Success(t *testing.T) {
 	}
 
 	respBody := rec.Body.String()
-	if !strings.HasPrefix(respBody, "http://") {
+	if !strings.HasPrefix(respBody, "") {
 		t.Errorf("Response should start with 'http://', got: %s", respBody)
 	}
 

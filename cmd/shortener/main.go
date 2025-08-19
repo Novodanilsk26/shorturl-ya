@@ -48,7 +48,7 @@ func rootHandle(c echo.Context) error {
 	shortID := generateShortID()
 	urls[shortID] = longURL
 
-	shortURL := fmt.Sprintf("http://%s/%s", flagBaseURL, shortID)
+	shortURL := fmt.Sprintf("%s/%s", flagBaseURL, shortID)
 
 	return c.String(http.StatusCreated, shortURL)
 }
