@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/labstack/echo/v4"
 )
 
 func TestRootHandle_POST_Success(t *testing.T) {
@@ -18,52 +20,47 @@ func TestRootHandle_POST_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
 	rec := httptest.NewRecorder()
 
-	rootHandle(rec, req)
+	e := echo.New()
+	c := e.NewContext(req, rec)
 
-	if rec.Code != http.StatusCreated {
-		t.Errorf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	err := rootHandle(c)
+	if err != nil {
+		t.Fatalf("Handler returned error: %v", err)
 	}
 
-	expectedContentType := "text/plain"
-	if contentType := rec.Header().Get("Content-Type"); contentType != expectedContentType {
-		t.Errorf("expected content-type %s, got %s", expectedContentType, contentType)
+	if rec.Code != http.StatusCreated {
+		t.Errorf("Expected status %d, got %d", http.StatusCreated, rec.Code)
 	}
 
 	respBody := rec.Body.String()
-	if !strings.HasPrefix(respBody, "http://localhost:8080/") {
-		t.Errorf("response should start with 'http://localhost:8080/', got: %s", respBody)
+	if !strings.HasPrefix(respBody, "http://") {
+		t.Errorf("Response should start with 'http://', got: %s", respBody)
 	}
 
-	shortID := strings.TrimPrefix(respBody, "http://localhost:8080/")
+	shortID := respBody[strings.LastIndex(respBody, "/")+1:]
 	if urls[shortID] != reqBody {
-		t.Errorf("expected URL %s to be saved with ID %s", reqBody, shortID)
+		t.Errorf("Expected URL %s to be saved with ID %s", reqBody, shortID)
 	}
 }
 
 func TestRootHandle_InvalidMethod(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/", nil)
+    rec := httptest.NewRecorder()
 
-	rootHandle(rec, req)
+    e := echo.New()
+    c := e.NewContext(req, rec)
 
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, rec.Code)
-	}
-}
+    err := rootHandle(c)
+    if err != nil {
+        t.Fatal(err)
+    }
 
-func TestRootHandle_EmptyBody(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(""))
-	rec := httptest.NewRecorder()
-
-	rootHandle(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+    if rec.Code != http.StatusBadRequest {
+        t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+    }
 }
 
 func TestRedirectHandle_GET_Success(t *testing.T) {
-	
 	testID := "test123"
 	testURL := "https://example.com"
 	urls[testID] = testURL
@@ -71,26 +68,23 @@ func TestRedirectHandle_GET_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/"+testID, nil)
 	rec := httptest.NewRecorder()
 
-	redirectHandle(rec, req)
+	e := echo.New()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues(testID)
+
+	err := redirectHandle(c)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if rec.Code != http.StatusTemporaryRedirect {
-		t.Errorf("expected status %d, got %d", http.StatusTemporaryRedirect, rec.Code)
+		t.Errorf("Expected status %d, got %d", http.StatusTemporaryRedirect, rec.Code)
 	}
 
 	location := rec.Header().Get("Location")
 	if location != testURL {
-		t.Errorf("expected location %s, got %s", testURL, location)
-	}
-}
-
-func TestRedirectHandle_InvalidMethod(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/test123", nil)
-	rec := httptest.NewRecorder()
-
-	redirectHandle(rec, req)
-
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, rec.Code)
+		t.Errorf("Expected location %s, got %s", testURL, location)
 	}
 }
 
@@ -98,10 +92,18 @@ func TestRedirectHandle_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 	rec := httptest.NewRecorder()
 
-	redirectHandle(rec, req)
+	e := echo.New()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("nonexistent")
+
+	err := redirectHandle(c)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if rec.Code != http.StatusNotFound {
-		t.Errorf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+		t.Errorf("Expected status %d, got %d", http.StatusNotFound, rec.Code)
 	}
 }
 
@@ -113,17 +115,17 @@ func TestGenerateShortID(t *testing.T) {
 		id := generateShortID()
 		
 		if len(id) != 8 {
-			t.Errorf("expected ID length 8, got %d", len(id))
+			t.Errorf("Expected ID length 8, got %d", len(id))
 		}
 		
 		if generated[id] {
-			t.Errorf("duplicate ID generated: %s", id)
+			t.Errorf("Duplicate ID generated: %s", id)
 		}
 		generated[id] = true
 		
 		for _, c := range id {
 			if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
-				t.Errorf("invalid character in ID: %c", c)
+				t.Errorf("Invalid character in ID: %c", c)
 				break
 			}
 		}

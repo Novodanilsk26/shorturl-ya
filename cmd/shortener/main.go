@@ -2,82 +2,56 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"io"
 	"crypto/rand"
 	"encoding/hex"
+	"github.com/labstack/echo/v4"
+	"net/http"
 )
 
 var urls = make(map[string]string) 
 
 func main() {
-	http.HandleFunc("/", rootHandle)
-	http.HandleFunc("/{id}", redirectHandle)
-	http.ListenAndServe(":8080", nil)
+	e := echo.New()
+
+	e.POST("/", rootHandle)
+	e.GET("/:id", redirectHandle)
+
+	e.Logger.Fatal(e.Start(":8080"))
 }
 
-func rootHandle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func rootHandle(c echo.Context) error {
+	body, err := io.ReadAll(c.Request().Body)
 
-	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
+		return c.String(http.StatusBadRequest, "Bad request")
 	}
 
 	longURL := strings.TrimSpace(string(body))
 	if longURL == "" {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
+		return c.String(http.StatusBadRequest, "Bad request")
 	}
 
 	shortID := generateShortID()
 	urls[shortID] = longURL
 
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "http://localhost:8080/%s", shortID)
+	shortURL := fmt.Sprintf("http://%s/%s", c.Request().Host, shortID)
+
+	return c.String(http.StatusCreated, shortURL)
 }
 
-func redirectHandle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	id := strings.TrimPrefix(r.URL.Path, "/")
+func redirectHandle(c echo.Context) error {
+	id := c.Param("id")
 	longURL, exists := urls[id]
+
 	if !exists {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
+		return c.String(http.StatusNotFound, "Not found")
 	}
 
-	http.Redirect(w, r, longURL, http.StatusTemporaryRedirect)
+	return c.Redirect(http.StatusTemporaryRedirect, longURL)
 }
 
-func getURLFromRequest(r *http.Request) (string, error) {
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "text/plain" {
-		return "", fmt.Errorf("invalid content type")
-	}
-
-	buf := make([]byte, 1024)
-	n, err := r.Body.Read(buf)
-	if err != nil && err.Error() != "EOF" {
-		return "", err
-	}
-
-	url := strings.TrimSpace(string(buf[:n]))
-	if url == "" {
-		return "", fmt.Errorf("empty URL")
-	}
-
-	return url, nil
-}
 
 func generateShortID() string {
 	b := make([]byte, 4)
