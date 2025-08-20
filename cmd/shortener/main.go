@@ -1,75 +1,34 @@
 package main
 
 import (
-	"fmt"
-	"strings"
-	"io"
-	"crypto/rand"
-	"encoding/hex"
-	"github.com/labstack/echo/v4"
-	"net/http"
-	
+    "fmt"
+
+    "github.com/labstack/echo/v4"
+    "github.com/Novodanilsk26/shorturl-ya/internal/handler"
+    "github.com/Novodanilsk26/shorturl-ya/internal/repository"
+    "github.com/Novodanilsk26/shorturl-ya/internal/service"
 )
 
-var urls = make(map[string]string) 
-
 func main() {
-	parseFlags()
+    cfg := parseFlags()
 
-	if err := run(); err != nil {
-		panic(err)
-	}
+    if err := run(cfg); err != nil {
+        panic(err)
+    }
 }
 
-func run() error {
-	e := echo.New()
+func run(cfg *Config) error {
+    e := echo.New()
 
-	e.POST("/", rootHandle)
-	e.GET("/:id", redirectHandle)
+    repo := repository.NewURLRepository()
+    urlService := service.NewURLService(repo, cfg.BaseURL)
+    urlHandler := handler.NewHandler(urlService)
 
-	fmt.Printf("Running server on %s\n", flagRunAddr)
-	fmt.Printf("Base URL: %s\n", flagBaseURL)
+    e.POST("/", urlHandler.RootHandle)
+    e.GET("/:id", urlHandler.RedirectHandle)
 
-	return e.Start(flagRunAddr)
-}
+    fmt.Printf("Running server on %s\n", cfg.RunAddr)
+    fmt.Printf("Base URL: %s\n", cfg.BaseURL)
 
-func rootHandle(c echo.Context) error {
-	body, err := io.ReadAll(c.Request().Body)
-
-	if err != nil {
-		return c.String(http.StatusBadRequest, "Bad request")
-	}
-
-	longURL := strings.TrimSpace(string(body))
-	if longURL == "" {
-		return c.String(http.StatusBadRequest, "Bad request")
-	}
-
-	shortID := generateShortID()
-	urls[shortID] = longURL
-
-	shortURL := fmt.Sprintf("%s/%s", flagBaseURL, shortID)
-
-	return c.String(http.StatusCreated, shortURL)
-}
-
-func redirectHandle(c echo.Context) error {
-	id := c.Param("id")
-	longURL, exists := urls[id]
-
-	if !exists {
-		return c.String(http.StatusNotFound, "Not found")
-	}
-
-	return c.Redirect(http.StatusTemporaryRedirect, longURL)
-}
-
-
-func generateShortID() string {
-	b := make([]byte, 4)
-	_, err := rand.Read(b)
-	if err != nil {
-		return fmt.Sprintf("%x", len(urls)+1)
-	}
-	return hex.EncodeToString(b)
+    return e.Start(cfg.RunAddr)
 }

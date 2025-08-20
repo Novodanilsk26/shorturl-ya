@@ -1,16 +1,16 @@
 package main
 
-import (
-    "flag"
-)
+import "flag"
 
-var flagRunAddr string
-var flagBaseURL string
+type Config struct {
+    RunAddr string
+    BaseURL string
+}
 
-func parseFlags() {
-
-    flag.StringVar(&flagRunAddr, "a", ":8080", "address and port to run server")
-    flag.StringVar(&flagBaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
-
+func parseFlags() *Config {
+    cfg := &Config{}
+    flag.StringVar(&cfg.RunAddr, "a", ":8080", "address and port to run server")
+    flag.StringVar(&cfg.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
     flag.Parse()
-} 
+    return cfg
+}

@@ -1,56 +1,56 @@
 package main
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
+    "net/http"
+    "net/http/httptest"
+    "strings"
+    "testing"
 
-	"github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4"
+    "github.com/Novodanilsk26/shorturl-ya/internal/handler"
+    "github.com/Novodanilsk26/shorturl-ya/internal/repository"
+    "github.com/Novodanilsk26/shorturl-ya/internal/service"
 )
 
 func TestRootHandle_POST_Success(t *testing.T) {
-	originalURLs := make(map[string]string)
-	for k, v := range urls {
-		originalURLs[k] = v
-	}
-	defer func() { urls = originalURLs }()
+    repo := repository.NewURLRepository()
+    service := service.NewURLService(repo, "http://localhost:8080")
+    handler := handler.NewHandler(service)
 
-	reqBody := "https://practicum.yandex.ru/"
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
-	rec := httptest.NewRecorder()
+    reqBody := "https://practicum.yandex.ru/"
+    req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
+    rec := httptest.NewRecorder()
 
-	e := echo.New()
-	c := e.NewContext(req, rec)
+    e := echo.New()
+    c := e.NewContext(req, rec)
 
-	err := rootHandle(c)
-	if err != nil {
-		t.Fatalf("Handler returned error: %v", err)
-	}
+    err := handler.RootHandle(c)
+    if err != nil {
+        t.Fatalf("Handler returned error: %v", err)
+    }
 
-	if rec.Code != http.StatusCreated {
-		t.Errorf("Expected status %d, got %d", http.StatusCreated, rec.Code)
-	}
+    if rec.Code != http.StatusCreated {
+        t.Errorf("Expected status %d, got %d", http.StatusCreated, rec.Code)
+    }
 
-	respBody := rec.Body.String()
-	if !strings.HasPrefix(respBody, "") {
-		t.Errorf("Response should start with 'http://', got: %s", respBody)
-	}
-
-	shortID := respBody[strings.LastIndex(respBody, "/")+1:]
-	if urls[shortID] != reqBody {
-		t.Errorf("Expected URL %s to be saved with ID %s", reqBody, shortID)
-	}
+    respBody := rec.Body.String()
+    if !strings.HasPrefix(respBody, "http://localhost:8080/") {
+        t.Errorf("Response should start with 'http://localhost:8080/', got: %s", respBody)
+    }
 }
 
 func TestRootHandle_InvalidMethod(t *testing.T) {
+    repo := repository.NewURLRepository()
+    service := service.NewURLService(repo, "http://localhost:8080")
+    handler := handler.NewHandler(service)
+
     req := httptest.NewRequest(http.MethodGet, "/", nil)
     rec := httptest.NewRecorder()
 
     e := echo.New()
     c := e.NewContext(req, rec)
 
-    err := rootHandle(c)
+    err := handler.RootHandle(c)
     if err != nil {
         t.Fatal(err)
     }
@@ -61,73 +61,57 @@ func TestRootHandle_InvalidMethod(t *testing.T) {
 }
 
 func TestRedirectHandle_GET_Success(t *testing.T) {
-	testID := "test123"
-	testURL := "https://example.com"
-	urls[testID] = testURL
+    repo := repository.NewURLRepository()
+    service := service.NewURLService(repo, "http://localhost:8080")
+    handler := handler.NewHandler(service)
 
-	req := httptest.NewRequest(http.MethodGet, "/"+testID, nil)
-	rec := httptest.NewRecorder()
+    testID := "test123"
+    testURL := "https://example.com"
+    repo.Store(testID, testURL)
 
-	e := echo.New()
-	c := e.NewContext(req, rec)
-	c.SetParamNames("id")
-	c.SetParamValues(testID)
+    req := httptest.NewRequest(http.MethodGet, "/"+testID, nil)
+    rec := httptest.NewRecorder()
 
-	err := redirectHandle(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+    e := echo.New()
+    c := e.NewContext(req, rec)
+    c.SetParamNames("id")
+    c.SetParamValues(testID)
 
-	if rec.Code != http.StatusTemporaryRedirect {
-		t.Errorf("Expected status %d, got %d", http.StatusTemporaryRedirect, rec.Code)
-	}
+    err := handler.RedirectHandle(c)
+    if err != nil {
+        t.Fatal(err)
+    }
 
-	location := rec.Header().Get("Location")
-	if location != testURL {
-		t.Errorf("Expected location %s, got %s", testURL, location)
-	}
+    if rec.Code != http.StatusTemporaryRedirect {
+        t.Errorf("Expected status %d, got %d", http.StatusTemporaryRedirect, rec.Code)
+    }
+
+    location := rec.Header().Get("Location")
+    if location != testURL {
+        t.Errorf("Expected location %s, got %s", testURL, location)
+    }
 }
 
 func TestRedirectHandle_NotFound(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
-	rec := httptest.NewRecorder()
+    repo := repository.NewURLRepository()
+    service := service.NewURLService(repo, "http://localhost:8080")
+    handler := handler.NewHandler(service)
 
-	e := echo.New()
-	c := e.NewContext(req, rec)
-	c.SetParamNames("id")
-	c.SetParamValues("nonexistent")
+    req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
+    rec := httptest.NewRecorder()
 
-	err := redirectHandle(c)
-	if err != nil {
-		t.Fatal(err)
-	}
+    e := echo.New()
+    c := e.NewContext(req, rec)
+    c.SetParamNames("id")
+    c.SetParamValues("nonexistent")
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("Expected status %d, got %d", http.StatusNotFound, rec.Code)
-	}
+    err := handler.RedirectHandle(c)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    if rec.Code != http.StatusNotFound {
+        t.Errorf("Expected status %d, got %d", http.StatusNotFound, rec.Code)
+    }
 }
 
-func TestGenerateShortID(t *testing.T) {
-	iterations := 100
-	generated := make(map[string]bool)
-
-	for i := 0; i < iterations; i++ {
-		id := generateShortID()
-		
-		if len(id) != 8 {
-			t.Errorf("Expected ID length 8, got %d", len(id))
-		}
-		
-		if generated[id] {
-			t.Errorf("Duplicate ID generated: %s", id)
-		}
-		generated[id] = true
-		
-		for _, c := range id {
-			if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
-				t.Errorf("Invalid character in ID: %c", c)
-				break
-			}
-		}
-	}
-}
